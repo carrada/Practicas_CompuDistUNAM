@@ -1,0 +1,420 @@
+PRÁCTICA 1 — DIVISIÓN DE TRABAJO
+Computación Distribuida 2027-1
+Profesor: Salvador López Mendoza
+Criba de Eratóstenes con procesos en Elixir
+
+Equipo: Emilio, Emiliano, Omar, Erick, Jetro
+
+
+PARA QUÉ ES ESTE ARCHIVO
+Cada integrante tiene una parte que puede terminar hoy, sin esperar a que
+otro suba su código. Lo único compartido ya está escrito aquí: nombres de
+módulos, firmas y formato de los mensajes. Nadie lo cambia.
+
+No se reparten "pasos de un mismo archivo". Se reparten cinco entregables
+distintos. El día que se junten, se copian los archivos a una carpeta y se
+corre un solo comando. Esa junta no hace falta para empezar ni para terminar
+la parte de cada quien.
+
+
+REGLA DE ORO
+- Cada quien escribe SOLO su archivo.
+- No se modifica el archivo de otro.
+- No se cambia el contrato de abajo.
+- Para probar hoy, cada quien usa el sustituto (stub) indicado en su sección.
+  Ese sustituto vive en un archivo de prueba personal y NO se entrega.
+- El código fuente debe ir documentado (comentario de qué hace cada función).
+- El programa del equipo tiene que compilar. Si no compila, la calificación
+  de la práctica queda en cero.
+
+
+CONTRATO COMÚN (congelado)
+
+Archivos y módulos
+  algebra.ex     módulo Algebra     dueño: Emilio
+  worker.ex      módulo Worker      dueño: Emiliano
+  server.ex      módulo Server      dueño: Omar
+  benchmark.ex   módulo Benchmark   dueño: Erick
+  analisis.txt   texto de las 8 preguntas   dueño: Jetro
+
+Funciones que los demás pueden llamar
+  Algebra.primes_between(a, b) :: [entero]
+      Primos del intervalo cerrado [a, b], de menor a mayor.
+      Si a > b, o si no hay primos, regresa [].
+      1 no es primo. primes_between(2, 2) regresa [2].
+
+  Worker.loop() :: ninguno
+      Punto de entrada del proceso. Se arranca con spawn/3:
+      spawn(Worker, :loop, [])
+      Después el proceso espera UN mensaje (receive) y contesta con send.
+
+  Server.intervalos(n, k) :: [{id, a, b}, ...]
+      Parte [1, n] en k bloques. Función pura, sin procesos.
+      Sirve para que Omar pruebe el reparto sin trabajadores reales.
+
+  Server.start(k, n) :: [entero]
+      Crea k trabajadores, reparte [1, n], junta las respuestas y regresa
+      la lista ordenada de primos <= n.
+      k y n son enteros >= 1.
+      Ejemplo del PDF: Server.start(4, 40) =
+      [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37]
+
+  Benchmark.run() :: :ok
+      Llama Server.start/2 varias veces, mide el tiempo y escribe la tabla
+      en milisegundos.
+
+Mensajes (send / receive). No cambiar los átomos ni el orden de los campos.
+
+  Coordinador -> trabajador:
+      {:trabajo, id, a, b, pid_coordinador}
+
+  Trabajador -> coordinador:
+      {:resultado, id, lista_de_primos}
+
+  id es un entero que empieza en 1.
+  lista_de_primos va ordenada y solo contiene primos de [a, b].
+
+Cómo se parte el intervalo (Omar lo implementa; todos usan estos ejemplos)
+  Se cubre [1, n] sin huecos y sin traslapes.
+  base  = div(n, k)
+  resto = rem(n, k)
+  Los primeros `resto` bloques miden base + 1.
+  Los demás miden base.
+  Si un bloque mide 0 (pasa cuando k > n), ese trabajador recibe a > b
+  y debe contestar {:resultado, id, []}.
+
+  Server.intervalos(40, 4) =
+      [{1, 1, 10}, {2, 11, 20}, {3, 21, 30}, {4, 31, 40}]
+
+  Server.intervalos(20, 3) =
+      [{1, 1, 7}, {2, 8, 14}, {3, 15, 20}]
+
+  Server.intervalos(5, 2) =
+      [{1, 1, 3}, {2, 4, 5}]
+
+Orden de llegada
+  Los mensajes pueden llegar en cualquier orden. El coordinador no debe
+  armar la lista final según quién contesta primero: junta todo y ordena.
+
+Tiempo de espera
+  El receive del coordinador usa after de 60_000 ms. Si falta la respuesta
+  de algún trabajador, el coordinador termina con un error claro y no se
+  queda bloqueado. Un trabajador lento retrasa el resultado porque se espera
+  a todos, pero no cuelga el programa para siempre.
+
+Qué se considera primo correcto (sirve de prueba a Emilio, sin procesos)
+  Algebra.primes_between(1, 20) =
+      [2, 3, 5, 7, 11, 13, 17, 19]
+  Algebra.primes_between(11, 20) =
+      [11, 13, 17, 19]
+  Algebra.primes_between(21, 30) =
+      [23, 29]
+  Algebra.primes_between(31, 40) =
+      [31, 37]
+  Algebra.primes_between(1, 1) = []
+  Algebra.primes_between(8, 10) = []
+
+Valores de los experimentos (ya decididos, Erick no tiene que consultarlos)
+  Trabajadores: 1, 2, 4, 8 y 16
+  Tres límites N: 10000, 100000 y 500000
+  Unidad: milisegundos
+
+
+CÓMO PROBAR UN ARCHIVO SOLO
+Elixir resuelve las llamadas entre módulos al ejecutar, no al compilar.
+Por eso server.ex compila aunque worker.ex todavía no exista.
+Cada quien crea un archivo de prueba aparte, por ejemplo emilio_prueba.ex,
+con un módulo sustituto del compañero y sus IO.inspect. Ese archivo de
+prueba no forma parte de la entrega.
+
+
+----------------------------------------------------------------
+1. EMILIO — Criba de Eratóstenes
+Archivo: algebra.ex
+Módulo: Algebra
+No depende de nadie.
+
+Qué hace
+  Implementa Algebra.primes_between/2 con la criba de Eratóstenes.
+  Solo funciones, listas y recursión. Sin spawn, sin send y sin receive.
+  Esta función es la que cada trabajador llamará sobre SU intervalo.
+  Un intervalo [a, b] no empieza en 2 cuando el bloque no es el primero
+  (por ejemplo [21, 30]). La función tiene que ser correcta en cualquier
+  [a, b], no solo en [1, n].
+
+Cómo lograr la criba en un subintervalo, sin pedir nada a otro módulo
+  1. Si b < 2 o a > b, regresar [].
+  2. Calcular los primos menores o iguales que la raíz cuadrada de b
+     con la criba clásica (lista completa chica). Eso queda DENTRO de
+     Algebra. Ningún proceso se lo va a pasar.
+  3. Con esos primos, tachar sus múltiplos dentro de [a, b].
+  4. Regresar los que queden, de menor a mayor, sin el 1.
+
+Qué practicar de la materia (está en los objetivos y le toca a este archivo)
+  Módulos, funciones, recursión, listas, Enum (map, filter o equivalentes)
+  y la criba descrita en el PDF.
+
+Cuándo está terminado
+  Las seis pruebas de "primo correcto" de arriba pasan en IEx,
+  más primes_between(1, 40) =
+  [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37].
+  No hace falta levantar procesos para cerrar esta parte.
+
+Sustituto
+  No necesita sustituto. Su archivo no llama a otros módulos del equipo.
+
+
+----------------------------------------------------------------
+2. EMILIANO — Proceso trabajador
+Archivo: worker.ex
+Módulo: Worker
+No espera a algebra.ex ni a server.ex.
+
+Qué hace
+  El proceso que busca los primos de un solo intervalo.
+  Worker.loop/0 se arranca con spawn(Worker, :loop, [])  (spawn/3).
+  Hace receive del mensaje
+      {:trabajo, id, a, b, pid_coordinador}
+  Calcula los primos con la llamada ya fijada:
+      Algebra.primes_between(a, b)
+  y contesta:
+      send(pid_coordinador, {:resultado, id, primos})
+  Si a > b, contesta lista vacía.
+  Después de contestar, el proceso termina. No hace falta un ciclo infinito.
+  El trabajador no sabe cuántos trabajadores hay ni cuál es N. Solo ve
+  el intervalo que le llegó. Así se cumple el requisito de cambiar el
+  número de trabajadores sin tocar la lógica del trabajador.
+
+Qué practicar
+  spawn, send, receive y el formato de mensaje.
+
+Cuándo está terminado
+  Con el sustituto de abajo, este guion imprime [2, 3, 5, 7] y no hace
+  timeout:
+
+      pid = spawn(Worker, :loop, [])
+      send(pid, {:trabajo, 1, 1, 10, self()})
+      receive do
+        {:resultado, 1, lista} -> IO.inspect(lista)
+      after
+        2_000 -> IO.puts("fallo")
+      end
+
+  Probar también {:trabajo, 2, 8, 7, self()} y comprobar que llega
+  {:resultado, 2, []}.
+
+Sustituto (archivo aparte, no entregar). Firma idéntica a la de Emilio:
+  defmodule Algebra do
+    def primes_between(a, b) when a > b, do: []
+    def primes_between(a, b) do
+      Enum.filter(max(a, 2)..b, fn x -> primo?(x) end)
+    end
+    defp primo?(n) do
+      n >= 2 and Enum.all?(2..trunc(:math.sqrt(n)), fn d -> rem(n, d) != 0 end)
+    end
+  end
+  Esto NO es la criba. Solo deja probar el proceso. En la entrega, la
+  línea Algebra.primes_between(a, b) se queda igual y se usa el algebra.ex
+  de Emilio.
+
+
+----------------------------------------------------------------
+3. OMAR — Proceso coordinador
+Archivo: server.ex
+Módulo: Server
+No espera a worker.ex ni a algebra.ex.
+
+Qué hace
+  Server.intervalos/2 parte [1, n] con la regla del contrato.
+  Server.start(k, n):
+    1. Calcula los k intervalos.
+    2. Por cada uno hace spawn(Worker, :loop, []) y le manda
+       {:trabajo, id, a, b, self()}.
+    3. Recibe exactamente k mensajes {:resultado, id, lista} con after
+       de 60_000 ms.
+    4. Junta las listas, las aplana y las ordena de menor a mayor.
+    5. Regresa esa lista.
+  No mide el tiempo (eso es benchmark.ex).
+  No implementa la criba (eso es algebra.ex).
+  No escribe el receive interno del trabajador (eso es worker.ex).
+  El número de trabajadores solo entra como el argumento k. Nada de
+  procesos fijos escritos a mano para 4 workers.
+
+Qué practicar
+  Reparto de trabajo, spawn, send, receive, after, y combinar resultados
+  que llegan desordenados.
+
+Cuándo está terminado
+  Server.intervalos/2 coincide con los tres ejemplos del contrato.
+  Con el trabajador sustituto, Server.start(4, 40) regresa una lista
+  ordenada formada por las cuatro respuestas falsas, y un quinto caso
+  con k mayor que n no se queda colgado (los bloques vacíos también
+  contestan).
+
+Sustituto (archivo aparte, no entregar):
+  defmodule Worker do
+    def loop do
+      receive do
+        {:trabajo, id, a, b, de} ->
+          falsos = if a > b, do: [], else: [id]
+          send(de, {:resultado, id, falsos})
+      end
+    end
+  end
+  Con este sustituto, Server.start(4, 40) debe regresar [1, 2, 3, 4]
+  si cada trabajador falso contesta solo su id. Sirve para probar el
+  reparto y la recolección, no la lista de primos.
+
+
+----------------------------------------------------------------
+4. ERICK — Tiempo y experimentos
+Archivo: benchmark.ex
+Módulo: Benchmark
+No espera a server.ex, worker.ex ni algebra.ex.
+
+Qué hace
+  Benchmark.run/0 ejecuta Server.start(k, n) para
+      k en [1, 2, 4, 8, 16]
+      n en [10000, 100000, 500000]
+  son 15 corridas.
+  Mide con :timer.tc y convierte a milisegundos (dividir microsegundos
+  entre 1000).
+  Imprime una tabla legible, por ejemplo:
+
+      N        1    2    4    8    16
+      10000    ..   ..   ..   ..   ..
+      100000   ..   ..   ..   ..   ..
+      500000   ..   ..   ..   ..   ..
+
+  Cada celda es el tiempo de ESA configuración, en milisegundos.
+  No modifica Server, Worker ni Algebra. Solo los llama.
+  Opcional, si quiere un número más estable: repetir cada celda 3 veces
+  y publicar la mediana. Si hace eso, debe decirlo en el encabezado de
+  la tabla. Con una corrida por celda ya se cumple el PDF.
+
+Qué practicar
+  Medición de tiempo y la comparación al cambiar el número de procesos,
+  que es lo que pide la sección de experimentos.
+
+Cuándo está terminado
+  Benchmark.run/0 recorre las 15 configuraciones, no truena si Server.start
+  regresa una lista, y escribe la tabla en milisegundos.
+  Eso se prueba con el sustituto. La tabla con los tiempos REALES de la
+  criba se obtiene el día de la integración, con un comando, sin reescribir
+  este archivo.
+
+Sustituto (archivo aparte, no entregar):
+  defmodule Server do
+    def start(k, n) do
+      Process.sleep(30 + k)
+      [2, 3, 5]
+    end
+  end
+  El sleep depende de k a propósito, para ver que la tabla cambia de
+  columna a columna. Esos números no se entregan; solo demuestran que
+  el medidor funciona.
+
+
+----------------------------------------------------------------
+5. JETRO — Preguntas de análisis y armado del reporte
+Archivo: analisis.txt
+No espera código, tablas ni tiempos.
+
+Qué hace
+  Redacta la respuesta de las 8 preguntas del PDF (sección 2.7), con
+  justificación. No son respuestas de una sola línea.
+  Se contestan a partir del contrato de este documento y de lo visto en
+  clase. No hace falta correr el programa de los demás, porque el diseño
+  ya está fijado:
+
+  1. El trabajo se parte con Server.intervalos/2 en bloques de [1, n].
+     Cada trabajador solo criba su [a, b].
+  2. La comunicación es el mensaje {:trabajo, ...} de ida y
+     {:resultado, id, lista} de vuelta, con send y receive.
+  3. Un trabajador lento retrasa la lista final: el coordinador espera
+     las k respuestas. El after de 60 s evita el bloqueo infinito.
+  4. Más trabajadores que núcleos: los planificadores de la BEAM reparten
+     los procesos; no hay un núcleo físico por proceso.
+  5. El tiempo no tiene por qué bajar siempre. Hay que explicar el costo
+     de crear procesos y de pasar mensajes, y en qué momento ese costo
+     puede ganar al cálculo. Dejar al final de la pregunta 5 este hueco,
+     ya con el formato, para pegar números el día de la integración
+     (no bloquea cerrar la explicación):
+
+         TABLA_DE_ERICK
+         N        1    2    4    8    16
+         10000
+         100000
+         500000
+
+  6. Costos extra: spawn, copiar la lista en el mensaje, el receive y
+     juntar/ordenar al final.
+  7. Un solo proceso hace toda la criba. Varios procesos parten el
+     intervalo y se sincronizan por mensajes. Comparar esos dos modos
+     con la fila k = 1 de la tabla y con el requisito de que cada
+     trabajador sí calcule (no vale simular trabajadores).
+  8. Concurrencia, paralelismo y distribución no son lo mismo. Esta
+     práctica usa procesos de la BEAM en una sola máquina. Hay que
+     decir si eso alcanza para llamarlo sistema distribuido y por qué.
+
+  Además deja listo el orden del PDF de entrega, para que el armado
+  final sea pegar y no redactar:
+    a. Integrantes.
+    b. Las 8 respuestas (este analisis.txt).
+    c. La tabla de tiempos (salida de Benchmark.run).
+    d. Código, en este orden: algebra.ex, worker.ex, server.ex,
+       benchmark.ex.
+
+Cuándo está terminado
+  analisis.txt tiene las 8 respuestas redactadas y el hueco
+  TABLA_DE_ERICK. No necesita un número real para darse por cerrado.
+
+
+----------------------------------------------------------------
+MAPA RÁPIDO DE LOS REQUISITOS DEL PDF
+
+  Elixir                         todos, cada quien en su archivo
+  spawn/1 o spawn/3              Emiliano define loop; Omar hace el spawn
+  send y receive                 Emiliano y Omar
+  Proceso coordinador            Omar
+  Procesos trabajadores          Emiliano
+  Cambiar el número de workers
+    sin tocar su lógica          Omar (argumento k); Emiliano no lo hardcodea
+  Primos <= n correctos          Emilio
+  Juntar y ordenar               Omar
+  Registrar el tiempo            Erick
+  Experimentos 1, 2, 4, 8, 16
+    y al menos tres N            Erick (N ya fijados arriba)
+  Preguntas de análisis          Jetro
+  Código documentado             cada quien, en su archivo
+  Un solo PDF de equipo          Jetro deja la estructura; se arma al final
+
+
+INTEGRACIÓN (cuando los cinco archivos ya existen; nadie la necesita antes)
+
+  Carpeta con los cinco archivos. Comprobación de los ejemplos del PDF:
+
+      elixir -e '
+        Code.compile_file("algebra.ex")
+        Code.compile_file("worker.ex")
+        Code.compile_file("server.ex")
+        IO.inspect(Server.start(4, 40))
+      '
+
+  Debe imprimir
+      [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37]
+
+  Tabla oficial:
+
+      elixir -e '
+        Code.compile_file("algebra.ex")
+        Code.compile_file("worker.ex")
+        Code.compile_file("server.ex")
+        Code.compile_file("benchmark.ex")
+        Benchmark.run()
+      '
+
+  Esa salida se pega en TABLA_DE_ERICK. Con eso se arma el PDF.
+  Si algo no embona, se revisa contra este contrato (nombre de módulo,
+  átomo del mensaje u orden de los campos). No se reescribe la parte
+  de otro para "hacerla coincidir".
