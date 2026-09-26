@@ -189,33 +189,18 @@ Qué practicar
   spawn, send, receive y el formato de mensaje.
 
 Cuándo está terminado
-  Con el sustituto de abajo, este guion imprime [2, 3, 5, 7] y no hace
-  timeout:
+  Con un Algebra de prueba (archivo aparte, no se entrega) que tenga
+  la misma función primes_between/2, este caso contesta
+  {:resultado, 1, [2, 3, 5, 7]}:
+  arrancar loop, mandarle trabajo con id 1, intervalo de 1 a 10 y el
+  pid de quien prueba, y esperar la respuesta.
+  Probar también un intervalo al revés, a = 8 y b = 7, con id 2.
+  La respuesta debe ser {:resultado, 2, []}.
 
-      pid = spawn(Worker, :loop, [])
-      send(pid, {:trabajo, 1, 1, 10, self()})
-      receive do
-        {:resultado, 1, lista} -> IO.inspect(lista)
-      after
-        2_000 -> IO.puts("fallo")
-      end
-
-  Probar también {:trabajo, 2, 8, 7, self()} y comprobar que llega
-  {:resultado, 2, []}.
-
-Sustituto (archivo aparte, no entregar). Firma idéntica a la de Emilio:
-  defmodule Algebra do
-    def primes_between(a, b) when a > b, do: []
-    def primes_between(a, b) do
-      Enum.filter(max(a, 2)..b, fn x -> primo?(x) end)
-    end
-    defp primo?(n) do
-      n >= 2 and Enum.all?(2..trunc(:math.sqrt(n)), fn d -> rem(n, d) != 0 end)
-    end
-  end
-  Esto NO es la criba. Solo deja probar el proceso. En la entrega, la
-  línea Algebra.primes_between(a, b) se queda igual y se usa el algebra.ex
-  de Emilio.
+Sustituto
+  El archivo de prueba no se entrega. Solo necesita un módulo Algebra
+  temporal con primes_between/2, para no esperar a Emilio. En worker.ex
+  la llamada se queda escrita como Algebra.primes_between(a, b).
 
 
 ----------------------------------------------------------------
@@ -251,19 +236,11 @@ Cuándo está terminado
   con k mayor que n no se queda colgado (los bloques vacíos también
   contestan).
 
-Sustituto (archivo aparte, no entregar):
-  defmodule Worker do
-    def loop do
-      receive do
-        {:trabajo, id, a, b, de} ->
-          falsos = if a > b, do: [], else: [id]
-          send(de, {:resultado, id, falsos})
-      end
-    end
-  end
-  Con este sustituto, Server.start(4, 40) debe regresar [1, 2, 3, 4]
-  si cada trabajador falso contesta solo su id. Sirve para probar el
-  reparto y la recolección, no la lista de primos.
+Sustituto
+  Archivo aparte, no se entrega. Un Worker temporal cuyo loop contesta
+  {:resultado, id, [id]} si a <= b, y {:resultado, id, []} si a > b.
+  Con ese sustituto, Server.start(4, 40) regresa [1, 2, 3, 4].
+  Eso prueba el reparto y la recolección, no la lista de primos.
 
 
 ----------------------------------------------------------------
@@ -303,16 +280,11 @@ Cuándo está terminado
   criba se obtiene el día de la integración, con un comando, sin reescribir
   este archivo.
 
-Sustituto (archivo aparte, no entregar):
-  defmodule Server do
-    def start(k, n) do
-      Process.sleep(30 + k)
-      [2, 3, 5]
-    end
-  end
-  El sleep depende de k a propósito, para ver que la tabla cambia de
-  columna a columna. Esos números no se entregan; solo demuestran que
-  el medidor funciona.
+Sustituto
+  Archivo aparte, no se entrega. Un Server temporal cuyo start/2
+  espera un poco (más mientras más grande sea k) y regresa una lista
+  fija, por ejemplo [2, 3, 5]. Así se ve que la tabla cambia de columna
+  a columna. Esos números no se entregan.
 
 
 ----------------------------------------------------------------
@@ -392,28 +364,13 @@ MAPA RÁPIDO DE LOS REQUISITOS DEL PDF
 
 INTEGRACIÓN (cuando los cinco archivos ya existen; nadie la necesita antes)
 
-  Carpeta con los cinco archivos. Comprobación de los ejemplos del PDF:
-
-      elixir -e '
-        Code.compile_file("algebra.ex")
-        Code.compile_file("worker.ex")
-        Code.compile_file("server.ex")
-        IO.inspect(Server.start(4, 40))
-      '
+  Carpeta con los cinco archivos. Se compilan algebra.ex, worker.ex y
+  server.ex, y se llama Server.start(4, 40).
 
   Debe imprimir
       [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37]
 
-  Tabla oficial:
-
-      elixir -e '
-        Code.compile_file("algebra.ex")
-        Code.compile_file("worker.ex")
-        Code.compile_file("server.ex")
-        Code.compile_file("benchmark.ex")
-        Benchmark.run()
-      '
-
+  Tabla oficial: se compilan los cuatro módulos y se llama Benchmark.run().
   Esa salida se pega en TABLA_DE_ERICK. Con eso se arma el PDF.
   Si algo no embona, se revisa contra este contrato (nombre de módulo,
   átomo del mensaje u orden de los campos). No se reescribe la parte
