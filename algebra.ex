@@ -1,15 +1,14 @@
-@moduledoc "La criba es sobre un intervalo cerrado. Creado por Emilio Durán Tapia"
-
 # Función principal
 # Recibe el inicio y el final de un intervalo
+defmodule Algebra do
+@moduledoc """
+La criba es sobre un intervalo cerrado. Creado por Emilio Durán Tapia
+    """
 
 @doc """
     Función que devuelve una lista con los números primos entre a y b.
-    ## Ejemplo
-        iex> algebra.primes_between(1, 10)
-        [2, 3, 5, 7]
     """
-defmodule algebra do
+
     def primes_between(a, b) when a > b do
     []
 end
@@ -25,5 +24,41 @@ defp primes_between(act, b, _)
 end
 
 defp primes_between(act, b, _)do
-if esprimo(actual) do
-[]
+    when act < 2 do
+    primes_between(act + 1, b, act)
+end
+
+defp primes_between(act, b, _) do
+    if is_prime(act) do
+        [act | primes_between(act + 1, b, act)]
+    else
+        primes_between(act + 1, b, act)
+    end
+ end
+
+ # Revisa si un número es primo
+defp is_prime(n) when n < 2 do
+    false
+end
+
+defp is_prime(2) do
+    true
+end
+
+defp is_prime(n) do
+    no_divisors(n, 2)
+end
+
+# Busca la existencia de un divisor
+defp no_divisors(n, i) when i * i > n do
+    true
+end
+
+defp no_divisors(n, i) do
+    if rem(n, i) == 0 do
+        false
+    else 
+        no_divisors(n, i + 1)
+        end
+    end
+end
