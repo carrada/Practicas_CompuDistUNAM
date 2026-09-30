@@ -2,11 +2,12 @@
 # Recibe el inicio y el final de un intervalo
 defmodule Algebra do
 @moduledoc """
-        La criba es sobre un intervalo cerrado. Creado por Emilio Durán Tapia
+        Búsqueda de números primos sobre un intervalo cerrado por división por tentativa.
+        Creado por Emilio Durán Tapia
     """
 
 @doc """
-        Función que devuelve una lista con los números primos entre a y b.
+        Devuelve una lista con los números primos en el intervalo cerrado [a, b].
     """
 
     def primes_between(a, b) when a > b do
@@ -18,8 +19,7 @@ def primes_between(a, b) do
 end
 
 # Se recorren los números del intervalo
-defp primes_between(act, b, _)
-    when act > b do
+defp primes_between(act, b, _) when act > b do
     []
 end
 
