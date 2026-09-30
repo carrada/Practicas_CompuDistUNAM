@@ -120,5 +120,3 @@ defmodule Algebra do
     [start | build_range(start + 1, finish)]
   end
 end
-```
-
