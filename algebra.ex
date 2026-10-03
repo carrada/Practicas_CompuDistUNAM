@@ -8,14 +8,12 @@ defmodule Algebra do
   @doc """
   Regresa los números primos de [a, b] ordenados de menor a mayor.
   """
-
-  # Resuelve todos los casos en los que el intervalo no contiene resultados.
   def primes_between(a, b)
       when not is_integer(a) or not is_integer(b) or a > b or b < 2 do
     []
   end
 
-  # Calcula los primos base y tacha sus múltiplos dentro del intervalo.
+  # Calcula la raíz, obtiene los primos base y prepara los candidatos.
   def primes_between(a, b) do
     limite_izquierdo = max(a, 2)
 
@@ -48,13 +46,13 @@ defmodule Algebra do
     []
   end
 
-  # Construye la lista de candidatos y aplica la criba clásica.
+  # Construye la lista de números y aplica la criba clásica.
   defp primes_up_to(root) do
     numeros = build_range(2, root)
     classic_sieve(numeros)
   end
 
-  # Aplica recursivamente la criba clásica hasta terminar la lista.
+  # Aplica recursivamente la criba clásica.
   defp classic_sieve([]) do
     []
   end
@@ -64,7 +62,7 @@ defmodule Algebra do
     [p | classic_sieve(remove_multiples(rest, p))]
   end
 
-  # Elimina recursivamente los múltiplos de un primo de una lista.
+  # Elimina recursivamente los múltiplos de un primo.
   defp remove_multiples([], _p) do
     []
   end
@@ -79,7 +77,7 @@ defmodule Algebra do
     remove_multiples(rest, p)
   end
 
-  # Recorre los candidatos y tacha los múltiplos de cada primo base.
+  # Recorre los candidatos y aplica cada primo base.
   defp sieve_segment(candidates, []) do
     candidates
   end
@@ -90,7 +88,7 @@ defmodule Algebra do
     sieve_segment(candidatos_filtrados, rest)
   end
 
-  # Elimina los múltiplos de p excepto cuando el elemento es p mismo.
+  # Caso base de la eliminación de múltiplos.
   defp remove_multiples_keep_self([], _p) do
     []
   end
