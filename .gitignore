@@ -1,0 +1,5 @@
+# Archivos compilados de Elixir/Erlang.
+*.beam
+
+# Respaldos de archivos compilados.
+*.beam.respaldo
