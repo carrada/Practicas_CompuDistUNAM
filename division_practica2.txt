@@ -1,0 +1,281 @@
+PRÁCTICA 2 — DIVISIÓN DE TRABAJO
+Computación Distribuida 2027-1
+Profesor: Salvador López Mendoza
+La cena de los filósofos, con procesos y mensajes en Elixir
+
+Equipo: Emilio, Emiliano, Omar, Erick, Jetro
+
+
+PARA QUÉ ES ESTE ARCHIVO
+Cada integrante tiene una parte que puede terminar sin esperar el código
+de los demás. Lo único compartido ya está escrito aquí: nombres de módulos,
+firmas y formato de los mensajes. Nadie lo cambia.
+
+No se reparten pasos de un mismo archivo. Son cinco entregables distintos.
+El día de la integración se copian los archivos a una carpeta y se arranca
+la mesa. Esa junta no hace falta para empezar ni para terminar la parte
+de cada quien.
+
+Estas guías no contienen la solución. Cada quien escribe su código.
+
+
+REGLA DE ORO
+- Cada quien escribe SOLO su archivo.
+- No se modifica el archivo de otro, ni los de la práctica 1.
+- No se cambia el contrato de abajo.
+- Para probar hoy, cada quien usa un sustituto en un archivo aparte.
+  Ese archivo NO se entrega.
+- El código va documentado.
+- El programa tiene que compilar. Si no compila, la calificación queda
+  por debajo de 5, en automático en 0.
+- Nada de variables globales para el estado de los palillos.
+- Nada de GenServer, Agent, Task ni ETS. Solo spawn, send y receive.
+
+
+CONTRATO COMÚN (congelado)
+
+Archivos y módulos
+  palillo.ex     módulo Palillo     dueño: Emilio
+  filosofo.ex    módulo Filosofo    dueño: Emiliano
+  mesa.ex        módulo Mesa        dueño: Omar
+  bitacora.ex    módulo Bitacora    dueño: Erick
+  analisis_practica2.txt            dueño: Jetro
+
+Cómo se arranca cada proceso
+  spawn(Palillo, :loop, [id])
+      id es un entero del 1 al 5. El palillo nace LIBRE.
+
+  spawn(Filosofo, :loop, [id, palillo_a, palillo_b, pid_bitacora, pid_mesa])
+      palillo_a y palillo_b son tuplas {id_palillo, pid}.
+      Van en el orden del PDF, no en el orden en que se piden.
+
+  spawn(Bitacora, :loop, [])
+
+  Mesa.iniciar()
+      Crea la bitácora, los cinco palillos y los cinco filósofos.
+      Espera a que los cinco terminen y regresa el átomo :ok.
+
+Pares de palillos (Omar los cablea; todos usan esta tabla)
+  Filósofo 1: palillos 5 y 1
+  Filósofo 2: palillos 1 y 2
+  Filósofo 3: palillos 2 y 3
+  Filósofo 4: palillos 3 y 4
+  Filósofo 5: palillos 4 y 5
+
+  Mesa.pares() regresa, sin crear procesos:
+      [{1, 5, 1}, {2, 1, 2}, {3, 2, 3}, {4, 3, 4}, {5, 4, 5}]
+  Cada tupla es {id_filosofo, id_palillo_a, id_palillo_b}.
+
+Vecinos (los usa Erick para vigilar la exclusión mutua)
+  1 está junto a 2 y a 5
+  2 está junto a 1 y a 3
+  3 está junto a 2 y a 4
+  4 está junto a 3 y a 5
+  5 está junto a 4 y a 1
+  1 y 3 no son vecinos. 1 y 2 sí lo son.
+
+Mensajes. No cambiar los átomos ni el orden de los campos.
+
+  Filósofo -> palillo, para pedirlo:
+      {:solicitar, pid_filosofo, id_filosofo}
+
+  Palillo -> filósofo, cuando se lo da:
+      {:conceder, id_palillo}
+
+  Filósofo -> palillo, para soltarlo:
+      {:liberar, pid_filosofo, id_filosofo}
+
+  Filósofo -> bitácora:
+      {:evento, id_filosofo, dato}
+
+  El dato es uno de estos:
+      :pensando
+      :hambriento
+      {:solicita, id_palillo_a, id_palillo_b}
+      {:esperando, id_palillo}
+      {:obtuvo, id_palillo}
+      :comiendo
+      :termino
+      {:libero, id_palillo}
+
+  Filósofo -> mesa, cuando ya cumplió sus ciclos:
+      {:listo, id_filosofo}
+
+Orden para no caer en interbloqueo
+  El filósofo pide los dos palillos de menor número a mayor número.
+  No pide el segundo hasta que el primero ya le fue concedido.
+  La línea "solicita los palillos" sí usa el orden del PDF
+  (el filósofo 1 dice 5 y 1, aunque pida primero el 1 y luego el 5).
+  El palillo, si está OCUPADO, guarda la petición y la atiende cuando
+  quede libre. No se pierde el mensaje.
+
+Cuántas veces cena cada filósofo
+  Tres ciclos. Cada ciclo es: pensar, tener hambre, conseguir los dos
+  palillos, comer, soltar los dos. Al acabar el tercero manda {:listo, id}
+  a la mesa y ese proceso termina.
+  Pensar y comer esperan un tiempo corto al azar, entre 100 y 300
+  milisegundos, para que las líneas se intercalen.
+
+Textos que imprime solo la bitácora
+  :pensando                         Filósofo N está pensando.
+  :hambriento                       Filósofo N tiene hambre.
+  {:solicita, a, b}                 Filósofo N solicita los palillos A y B.
+  {:esperando, p}                   Filósofo N está esperando el palillo P.
+  {:obtuvo, p}                      Filósofo N obtuvo el palillo P.
+  :comiendo                         Filósofo N está comiendo.
+  :termino                          Filósofo N terminó de comer.
+  {:libero, p}                      Filósofo N liberó el palillo P.
+  Si dos vecinos quedan comiendo a la vez:
+      ERROR: filósofos contiguos comiendo: X y Y.
+  X y Y salen con el número menor primero.
+
+
+----------------------------------------------------------------
+1. EMILIO — Proceso palillo
+Archivo: palillo.ex
+Módulo: Palillo
+No depende de nadie.
+
+Qué hace
+  Un palillo. Nace libre. Si llega {:solicitar, pid, id_filosofo} y está
+  libre, pasa a ocupado, recuerda dueño y contesta {:conceder, id_palillo}
+  a ese pid. Si está ocupado, encola la petición y no contesta todavía.
+  Si llega {:liberar, pid, id_filosofo} del dueño, atiende al siguiente
+  de la cola (sigue ocupado y le manda :conceder) o, si no hay nadie,
+  vuelve a libre. Un liberar de quien no es el dueño no cambia nada.
+  El proceso no termina: después de cada mensaje sigue esperando.
+  El estado vive solo dentro del proceso. No hay variable global.
+  No imprime. No sabe cuántos filósofos hay.
+
+Cuándo está terminado
+  Con dos procesos de prueba (no se entregan) se ve esto:
+  el primero que solicita el palillo 1 recibe {:conceder, 1};
+  el segundo no recibe nada hasta que el primero libera;
+  después de ese liberar, el segundo recibe {:conceder, 1}.
+
+
+----------------------------------------------------------------
+2. EMILIANO — Proceso filósofo
+Archivo: filosofo.ex
+Módulo: Filosofo
+No espera a palillo.ex, mesa.ex ni bitacora.ex.
+
+Qué hace
+  loop/5 con los argumentos del contrato. Repite tres ciclos.
+  En cada ciclo avisa a la bitácora, en este orden:
+  pensando, hambriento, solicita (con los ids en el orden que le pasaron),
+  y luego, para cada palillo de menor id a mayor id:
+  le manda solicitar, avisa esperando, espera {:conceder, ese id},
+  avisa obtuvo.
+  Solo después de los dos conceder avisa comiendo.
+  Luego libera los dos, avisando libero por cada uno, y avisa termino.
+  Al salir del tercer ciclo manda {:listo, id} a pid_mesa y termina.
+  No crea palillos ni la mesa. No empieza a comer con un solo palillo.
+
+Cuándo está terminado
+  Con dos palillos de mentira que contestan :conceder enseguida, y una
+  bitácora de mentira que guarda los eventos, un ciclo deja esta secuencia
+  de datos (los números dependen del filósofo):
+  :pensando, :hambriento, {:solicita, _, _},
+  {:esperando, menor}, {:obtuvo, menor},
+  {:esperando, mayor}, {:obtuvo, mayor},
+  :comiendo, {:libero, _}, {:libero, _}, :termino.
+  :comiendo no aparece antes de los dos obtuvo.
+  Al tercer ciclo llega {:listo, id} a quien lo arrancó.
+
+
+----------------------------------------------------------------
+3. OMAR — La mesa
+Archivo: mesa.ex
+Módulo: Mesa
+No espera el cuerpo de los otros módulos.
+
+Qué hace
+  Mesa.pares/0 regresa la lista de cinco tuplas del contrato.
+  Mesa.iniciar/0:
+  1. Crea la bitácora con spawn(Bitacora, :loop, []).
+  2. Crea los palillos 1..5 con spawn(Palillo, :loop, [id]).
+  3. Por cada fila de pares/0 crea un filósofo. Le pasa las dos tuplas
+     {id_palillo, pid} en el orden de esa fila, el pid de la bitácora
+     y el suyo (self()), que es pid_mesa.
+  4. Recibe cinco {:listo, id}. Si en 60 segundos no llegan, corta
+     con un error que diga cuántos faltan.
+  5. Regresa :ok.
+  No implementa el palillo, ni el ciclo del filósofo, ni los textos.
+
+Cuándo está terminado
+  pares/0 coincide con la tabla del contrato.
+  Con un filósofo de mentira que solo manda {:listo, id}, iniciar/0
+  regresa :ok y no se queda colgado.
+
+
+----------------------------------------------------------------
+4. ERICK — Bitácora y vigilancia
+Archivo: bitacora.ex
+Módulo: Bitacora
+No espera a los demás.
+
+Qué hace
+  loop/0 recibe {:evento, id_filosofo, dato} y escribe la frase del
+  contrato, con punto al final. Lleva el conjunto de quienes están
+  comiendo: entra con :comiendo y sale con :termino.
+  Si el que entra es vecino de alguien que ya está comiendo, imprime
+  la línea ERROR con el menor primero. El proceso sigue vivo.
+  No pide palillos ni crea filósofos.
+
+Cuándo está terminado
+  Mandándole eventos a mano:
+  comiendo del 1 y del 3 no imprime ERROR (no son vecinos);
+  con el 1 todavía comiendo, comiendo del 2 sí imprime
+  ERROR: filósofos contiguos comiendo: 1 y 2.
+  Las frases de un evento suelto coinciden con la tabla de textos.
+
+
+----------------------------------------------------------------
+5. JETRO — Preguntas
+Archivo: analisis_practica2.txt
+No espera código ni una corrida.
+
+Qué hace
+  Responde las 9 preguntas de la sección 4 del PDF, con justificación,
+  usando el contrato de este archivo. No cambia el diseño.
+  Deja al final el orden del reporte:
+  integrantes, respuestas, cómo correr Mesa.iniciar(), y el código en
+  este orden: palillo.ex, filosofo.ex, mesa.ex, bitacora.ex.
+  Anota también el requisito de entrega: repositorio privado y
+  colaborador KevinTorres74. En Classroom solo se manda el enlace HTTPS.
+
+Cuándo está terminado
+  Las 9 respuestas están redactadas y coinciden con los mensajes,
+  los pares y la regla de pedir primero el palillo de número menor.
+
+
+----------------------------------------------------------------
+MAPA DE LOS REQUISITOS DEL PDF
+
+  Cinco filósofos, proceso cada uno          Emiliano (el proceso), Omar (los crea)
+  Cinco palillos, proceso cada uno           Emilio (el proceso), Omar (los crea)
+  Estados pensando, hambriento, comiendo     Emiliano los vive, Erick los imprime
+  Palillo LIBRE u OCUPADO                    Emilio
+  Pedir, conceder y liberar                  Emilio y Emiliano, con los átomos de arriba
+  No comer sin los dos palillos              Emiliano
+  Soltar los dos al terminar                 Emiliano
+  Vecinos no comen a la vez                  Emilio (uno solo lo tiene) y Erick (lo vigila)
+  No contiguos sí pueden comer a la vez      no comparten palillo; Erick no marca error
+  Sin variables globales                     Emilio guarda el estado en el proceso
+  Sin deadlock de "todos toman el derecho"   Emiliano pide de menor id a mayor id
+  Salida que deje ver los estados            Erick
+  Preguntas                                  Jetro
+  Código documentado y que compile           cada quien, en su archivo
+
+
+INTEGRACIÓN (cuando los cinco archivos ya existen)
+
+  Se compilan palillo.ex, filosofo.ex, bitacora.ex y mesa.ex, y se llama
+  Mesa.iniciar(). Tiene que terminar y regresar :ok.
+  En la salida no debe aparecer la línea ERROR.
+  El filósofo 1 debe pedir, en alguna línea, los palillos 5 y 1.
+  El filósofo 1 y el 3 pueden salir comiendo en momentos que se cruzan.
+  El filósofo 1 y el 2, no.
+  Si algo no embona, se revisa el átomo o el orden de los campos contra
+  este contrato. No se reescribe el archivo de otro.
