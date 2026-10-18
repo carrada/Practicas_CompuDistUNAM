@@ -2,10 +2,7 @@
 defmodule Palillo do
   @moduledoc """
   Módulo que modela un palillo en el problema de los filósofos comensales.
-
-  Gestiona de forma autónoma su estado (:libre u :ocupado), su dueño y una cola
-  de espera explícita bajo la semántica de paso de mensajes de la máquina virtual BEAM.
-  No utiliza GenServer, Agent, ETS ni variables globales.
+  Creado por Emilio Durán Tapia
   """
 
   @doc """
