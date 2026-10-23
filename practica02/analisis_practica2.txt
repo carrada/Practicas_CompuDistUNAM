@@ -1,0 +1,77 @@
+PRÁCTICA 2 — CENA DE LOS FILÓSOFOS
+Computación Distribuida 2027-1
+Sección 4. Preguntas de análisis
+
+1. ¿Qué es la exclusión mutua en el contexto de este problema?
+La exclusión mutua significa que un palillo no puede ser utilizado por dos filósofos al mismo tiempo. Como los filósofos contiguos comparten un palillo, no pueden estar comiendo simultáneamente. La implementación representa cada palillo mediante un proceso que controla su disponibilidad y concede su uso a un solo filósofo a la vez.
+
+2. ¿Cuáles son los recursos compartidos?
+Los recursos compartidos son los cinco palillos, numerados del 1 al 5. Cada filósofo necesita exactamente dos: el filósofo 1 usa los palillos 5 y 1; el 2, los palillos 1 y 2; el 3, los palillos 2 y 3; el 4, los palillos 3 y 4; y el 5, los palillos 4 y 5. Cada palillo es compartido por los dos filósofos vecinos que pueden solicitarlo.
+
+3. ¿Por qué dos filósofos contiguos no pueden comer simultáneamente?
+Porque ambos necesitan al menos un palillo en común y este solo puede estar asignado a un filósofo a la vez. Por ejemplo, los filósofos 1 y 2 necesitan el palillo 1. Si el filósofo 1 lo tiene, el filósofo 2 debe esperar a que lo libere. Permitir que ambos comieran simultáneamente violaría la exclusión mutua.
+
+4. ¿Puede haber dos filósofos comiendo al mismo tiempo? Justifique su respuesta.
+Sí, siempre que no sean contiguos y no compartan palillos. Por ejemplo, el filósofo 1 utiliza los palillos 5 y 1, mientras que el filósofo 3 utiliza los palillos 2 y 3. Como sus recursos son distintos, ambos pueden estar comiendo al mismo tiempo. En cambio, los filósofos 1 y 2 no pueden hacerlo porque comparten el palillo 1.
+
+5. ¿Cómo garantiza su implementación que un palillo no sea utilizado por dos filósofos simultáneamente?
+En Palillo, cada recurso se ejecuta como un proceso independiente con estado :libre o :ocupado, un dueño y una cola de espera. Cuando está libre y recibe {:solicitar, pid_filosofo, id_filosofo}, responde {:conceder, id} y registra al solicitante como dueño. Si está ocupado, agrega la solicitud a su cola sin concederlo. Al recibir {:liberar, pid_filosofo, id_filosofo} del PID dueño, lo deja libre o se lo concede al siguiente de la cola. Como cada proceso atiende sus mensajes secuencialmente, no asigna el mismo palillo a dos filósofos simultáneamente.
+
+6. ¿Qué función cumplen los procesos que representan a los palillos?
+Cada proceso Palillo administra de manera exclusiva uno de los cinco recursos compartidos. Mantiene internamente su identificador, estado (:libre o :ocupado), dueño y cola de espera; recibe solicitudes, concede el recurso cuando corresponde y valida que quien lo libera sea el dueño actual. Si hay solicitudes pendientes, entrega el palillo a la primera de la cola. No se requieren variables globales para guardar su estado.
+
+7. ¿Qué función cumplen los mensajes utilizados por los filósofos?
+Los mensajes permiten coordinar los procesos sin compartir variables globales. Filosofo envía {:solicitar, self(), id} al proceso Palillo; este responde {:conceder, id_palillo} cuando lo asigna. Al terminar de comer, Filosofo envía {:liberar, self(), id}. Además, Filosofo envía {:evento, id, estado_o_detalle} a Bitacora para registrar lo sucedido y {:listo, id} a Mesa al terminar sus tres ciclos. Bitacora recibe los eventos :pensando, :hambriento, {:solicita, a, b}, {:esperando, palillo}, {:obtuvo, palillo}, :comiendo, :termino y {:libero, palillo}, e imprime la frase correspondiente. Mantiene un MapSet de filósofos comiendo y, si recibe :comiendo de dos vecinos, imprime una línea ERROR. Los mensajes y el orden de sus campos coinciden con los cuatro módulos compartidos.
+
+8. ¿Qué ocurriría si un filósofo obtiene solamente uno de los dos palillos que necesita?
+Si obtiene solo un palillo, el filósofo no puede comer: en Filosofo.pedir/3 queda bloqueado en receive hasta recibir {:conceder, ^id_palillo} para el segundo. Mientras espera, retiene el primero y puede retrasar a un vecino. El código ordena los dos palillos con Enum.sort_by/2 y solicita primero el de menor identificador. Esto elimina la espera circular que produciría el interbloqueo clásico si todos pidieran los palillos en el mismo sentido.
+
+9. ¿Qué modificaciones serían necesarias para evitar que un filósofo pueda quedarse esperando indefinidamente por un palillo?
+La implementación ya incorpora una cola FIFO en cada Palillo: si está ocupado, las nuevas solicitudes se agregan al final y, al liberarlo, se atiende a la primera. Esto favorece la equidad local. Para garantizar formalmente que ningún filósofo espere indefinidamente, sería necesario complementar esa política con una garantía de progreso global, por ejemplo un coordinador que administre turnos justos para adquirir ambos palillos, o un mecanismo de reservas con espera acotada. Ordenar los palillos de menor a mayor evita el deadlock, pero no demuestra por sí solo ausencia de inanición. En la ejecución actual cada filósofo realiza tres ciclos finitos, siempre que los procesos avancen y liberen sus recursos.
+
+------------------------------------------------------------
+ORDEN DEL REPORTE FINAL
+------------------------------------------------------------
+
+1. Integrantes del equipo.
+   Completar con los nombres completos de todos los integrantes.
+
+2. Respuestas a las nueve preguntas de la sección 4.
+   Incorporar las respuestas anteriores.
+
+3. Cómo ejecutar la práctica.
+   Desde el directorio que contiene los archivos, iniciar IEx:
+
+   iex
+
+   Y compilar los módulos:
+
+   c("palillo.ex")
+   c("filosofo.ex")
+   c("bitacora.ex")
+   c("mesa.ex")
+
+   Después ejecutar:
+
+   Mesa.iniciar()
+
+   La integración debe terminar devolviendo :ok.
+   La salida no debe mostrar ERROR.
+   Debe ser posible observar que el filósofo 1 solicita los palillos 5 y 1, que los filósofos 1 y 3 pueden coincidir comiendo y que los filósofos 1 y 2 nunca comen simultáneamente.
+
+4. Código fuente, en este orden:
+   a) palillo.ex
+   b) filosofo.ex
+   c) mesa.ex
+   d) bitacora.ex
+
+------------------------------------------------------------
+REQUISITOS DE ENTREGA
+------------------------------------------------------------
+
+- Documentar los archivos de código y comprobar que compilan correctamente.
+- Subir la práctica a un repositorio privado de GitHub.
+- Agregar como colaborador a KevinTorres74.
+- Entregar en Classroom únicamente el enlace HTTPS del repositorio.
+
+Nota: Las respuestas se revisaron contra los módulos Filosofo, Palillo, Mesa y Bitacora compartidos. No se ejecutó la integración ni se verificó la compilación, por lo que :ok y la ausencia de ERROR son resultados esperados, no comprobados. Bitacora vigila a partir de los eventos que recibe; no controla la asignación de palillos. El módulo Benchmark no forma parte de esta práctica.
