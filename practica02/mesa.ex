@@ -1,7 +1,7 @@
 defmodule Mesa do
   @moduledoc """
   Crea los procesos de la cena y espera a que terminen los cinco filósofos.
-
+  Andro
   """
 
   @doc "Devuelve los pares de palillos en el orden del contrato, sin crear procesos."

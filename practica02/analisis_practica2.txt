@@ -1,6 +1,5 @@
-PRÁCTICA 2 — CENA DE LOS FILÓSOFOS
-Computación Distribuida 2027-1
-Sección 4. Preguntas de análisis
+
+Preguntas de análisis
 
 1. ¿Qué es la exclusión mutua en el contexto de este problema?
 La exclusión mutua significa que un palillo no puede ser utilizado por dos filósofos al mismo tiempo. Como los filósofos contiguos comparten un palillo, no pueden estar comiendo simultáneamente. La implementación representa cada palillo mediante un proceso que controla su disponibilidad y concede su uso a un solo filósofo a la vez.
@@ -29,49 +28,4 @@ Si obtiene solo un palillo, el filósofo no puede comer: en Filosofo.pedir/3 que
 9. ¿Qué modificaciones serían necesarias para evitar que un filósofo pueda quedarse esperando indefinidamente por un palillo?
 La implementación ya incorpora una cola FIFO en cada Palillo: si está ocupado, las nuevas solicitudes se agregan al final y, al liberarlo, se atiende a la primera. Esto favorece la equidad local. Para garantizar formalmente que ningún filósofo espere indefinidamente, sería necesario complementar esa política con una garantía de progreso global, por ejemplo un coordinador que administre turnos justos para adquirir ambos palillos, o un mecanismo de reservas con espera acotada. Ordenar los palillos de menor a mayor evita el deadlock, pero no demuestra por sí solo ausencia de inanición. En la ejecución actual cada filósofo realiza tres ciclos finitos, siempre que los procesos avancen y liberen sus recursos.
 
-------------------------------------------------------------
-ORDEN DEL REPORTE FINAL
-------------------------------------------------------------
 
-1. Integrantes del equipo.
-   Completar con los nombres completos de todos los integrantes.
-
-2. Respuestas a las nueve preguntas de la sección 4.
-   Incorporar las respuestas anteriores.
-
-3. Cómo ejecutar la práctica.
-   Desde el directorio que contiene los archivos, iniciar IEx:
-
-   iex
-
-   Y compilar los módulos:
-
-   c("palillo.ex")
-   c("filosofo.ex")
-   c("bitacora.ex")
-   c("mesa.ex")
-
-   Después ejecutar:
-
-   Mesa.iniciar()
-
-   La integración debe terminar devolviendo :ok.
-   La salida no debe mostrar ERROR.
-   Debe ser posible observar que el filósofo 1 solicita los palillos 5 y 1, que los filósofos 1 y 3 pueden coincidir comiendo y que los filósofos 1 y 2 nunca comen simultáneamente.
-
-4. Código fuente, en este orden:
-   a) palillo.ex
-   b) filosofo.ex
-   c) mesa.ex
-   d) bitacora.ex
-
-------------------------------------------------------------
-REQUISITOS DE ENTREGA
-------------------------------------------------------------
-
-- Documentar los archivos de código y comprobar que compilan correctamente.
-- Subir la práctica a un repositorio privado de GitHub.
-- Agregar como colaborador a KevinTorres74.
-- Entregar en Classroom únicamente el enlace HTTPS del repositorio.
-
-Nota: Las respuestas se revisaron contra los módulos Filosofo, Palillo, Mesa y Bitacora compartidos. No se ejecutó la integración ni se verificó la compilación, por lo que :ok y la ausencia de ERROR son resultados esperados, no comprobados. Bitacora vigila a partir de los eventos que recibe; no controla la asignación de palillos. El módulo Benchmark no forma parte de esta práctica.
