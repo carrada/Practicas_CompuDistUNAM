@@ -1,0 +1,306 @@
+PRÁCTICA 3 — DIVISIÓN DE TRABAJO
+Computación Distribuida 2027-1
+Profesor: Salvador López Mendoza
+Consenso distribuido con líder, fallos y una operación
+
+Equipo: Emilio, Emiliano, Omar, Erick, Jetro
+
+Todo este trabajo vive en la carpeta practica03. No se crean archivos
+de esta práctica en la raíz del repositorio ni en practica01 o practica02.
+
+
+PARA QUÉ ES ESTE ARCHIVO
+Cada integrante termina su parte sin esperar el código de los demás.
+Lo único compartido ya está escrito aquí: nombres de módulos, firmas,
+mensajes y frases. Nadie lo cambia.
+
+No se reparten pasos de un mismo archivo. Son cinco entregables.
+El día de la integración se compilan los cinco módulos dentro de
+practica03 y se llama Consenso.iniciar(5).
+
+Estas guías no contienen la solución. Cada quien escribe su código.
+
+
+REGLA DE ORO
+- Cada quien escribe SOLO su archivo, dentro de practica03.
+- No se modifica el archivo de otro ni el de las prácticas 1 y 2.
+- No se cambia este contrato.
+- Para probar hoy, el sustituto va en un archivo aparte y NO se entrega.
+- El código va documentado.
+- Si el programa no compila, la calificación de la práctica queda en 0.
+- Nada de GenServer, Agent, Task ni ETS. Solo spawn, send y receive.
+- El estado de cada participante vive en su proceso.
+
+
+CONTRATO COMÚN (congelado)
+
+Archivos y módulos, todos en practica03/
+  reglas.ex         módulo Reglas         dueño: Emiliano
+  participante.ex   módulo Participante   dueño: Emilio
+  lider.ex          módulo Lider          dueño: Omar
+  salida.ex         módulo Salida         dueño: Erick
+  consenso.ex       módulo Consenso       dueño: Jetro
+
+Arranque
+  Consenso.iniciar(n) llama a Lider.iniciar(n) y regresa lo que ese regrese.
+  n es un entero >= 1. Los ejemplos del PDF usan n = 5.
+  Lider.iniciar(n) crea n participantes y corre las etapas.
+  spawn(Participante, :loop, [id]) con id desde 1 hasta n.
+
+Reglas puras, sin procesos
+  Reglas.propuesta()
+      Entero al azar entre 1 y 1000, inclusive.
+  Reglas.falla?()
+      Entero al azar entre 1 y 10. Falla solo cuando sale 3.
+      Eso es la probabilidad del 10 por ciento. No garantiza un fallo
+      por cada diez procesos: cada proceso tira su propio dado.
+  Reglas.quorum(n)
+      div(n, 2) + 1
+      Con n = 5 el quórum es 3. El PDF lo dice: hacen falta al menos
+      tres propuestas válidas. No se usa división con decimales.
+  Reglas.hay_consenso?(n, validas)
+      true cuando validas es mayor o igual que Reglas.quorum(n).
+  Reglas.ordenar(valores)
+      La lista de menor a mayor.
+  Reglas.acordado(valores)
+      El menor de esa lista. Es el valor del consenso.
+
+Mensajes. No cambiar átomos ni el orden de los campos.
+
+  Líder -> participante, para que proponga:
+      {:proponer, pid_lider}
+  Participante -> líder, si envió el valor:
+      {:propuesta, id, valor}
+  Participante -> líder, si falló antes de proponer:
+      {:fallo_propuesta, id, valor}
+      Después de mandarlo, ese proceso termina y no sigue.
+
+  Líder -> participante que sí propuso, con el valor acordado:
+      {:decision, valor}
+  Participante -> líder, cuando ya procesó la decisión:
+      {:decision_ok, id}
+
+  Líder -> participante que contestó la decisión, para registrar:
+      {:operar, valor}
+  Participante -> líder, si registró:
+      {:registro_ok, id}
+  Participante -> líder, si falló en la operación:
+      {:fallo_operacion, id}
+      Después de mandarlo, ese proceso termina.
+
+El líder siempre recibe una respuesta por cada mensaje que mandó,
+porque el que falla avisa antes de morirse. En la etapa 1 son n
+respuestas. En la decisión, una por cada propuesta válida. En la
+operación, una por cada proceso que terminó el consenso.
+
+Quién imprime
+  Solo el módulo Salida escribe en la terminal. Emilio y Omar lo llaman.
+  Las frases de abajo son el texto exacto, ya con los números puestos.
+
+  Salida.iniciando()
+      ------ Iniciando consenso -----------
+  Salida.propone(pid, valor, veces)
+      El proceso PID propone VALOR, VECES veces
+      veces vale 1 al proponer y 2 al recibir la decisión.
+      PID es el identificador del proceso, el que Elixir muestra
+      como #PID<...>.
+  Salida.falla_propuesta(pid, valor)
+      El proceso PID propone VALOR, antes de fallar
+  Salida.esperando()
+      "Estoy esperando mensajes"
+      Las comillas van en la línea.
+  Salida.lista(valores)
+      v=[valor1, valor2, valor3]
+      Solo valores válidos, de menor a mayor, con coma y espacio,
+      como en v=[57, 95, 319, 386, 410].
+  Salida.separador_resultado()
+      ------ Resultado del consenso -----------
+  Salida.no_consenso()
+      No es posible llegar a un consenso
+  Salida.resumen_consenso(n, v, c)
+      El total de procesos que participaron es N
+      El acuerdo es V
+      Numero de procesos que terminaron el algoritmo C
+      Son tres líneas. Numero va sin acento, como en el PDF.
+  Salida.separador_operacion()
+      ------ Ejecucion de la operacion --------
+  Salida.falla_operacion(pid)
+      El proceso PID falla al ejecutar la operacion
+  Salida.registra(pid, valor)
+      El proceso PID registra el valor VALOR
+  Salida.separador_final()
+      ----- Resumen final ---------
+  Salida.resumen_final(n, c, e, f)
+      El total de procesos que participaron es N
+      Numero de procesos que terminaron el algoritmo C
+      Procesos que confirmaron la operación: E
+      Procesos que no completaron la operación: F
+      Son cuatro líneas. Aquí operación sí lleva acento.
+
+Qué cuenta cada letra
+  N  procesos creados al inicio.
+  C  procesos que propusieron y además contestaron la decisión.
+     No es el número de los que después registran la operación.
+  V  el menor de las propuestas válidas.
+  E  procesos que registraron el valor.
+  F  procesos que fallaron durante la operación.
+     El que falló en la propuesta no entra en F: ya no participa
+     en la operación. El ejemplo del PDF que muestra a esos mismos
+     procesos "fallando al ejecutar" no se copia. Manda la definición
+     de la etapa 6: F es solo el fallo de la operación.
+
+Orden de una corrida con consenso
+  1. Banner de inicio.
+  2. Cada participante imprime su propuesta o su fallo.
+  3. "Estoy esperando mensajes" y la línea v=.
+  4. Cada participante que sigue imprime la decisión con 2 veces.
+  5. Otra vez "Estoy esperando mensajes".
+  6. Banner de resultado y las tres líneas de N, V y C.
+  7. Banner de la operación y las líneas de registro o fallo.
+  8. Banner de resumen final y las cuatro líneas de N, C, E y F.
+
+Orden si no hay consenso
+  Se detiene después del banner de resultado y la línea
+  "No es posible llegar a un consenso".
+  No hay operación ni resumen final.
+  Con n = 5, Q = 3. Hacen falta al menos tres fallos en la
+  propuesta para caer en este caso. Cinco propuestas válidas
+  sí alcanzan el consenso, aunque un ejemplo del PDF diga lo
+  contrario: el propio PDF corrige ese ejemplo.
+
+
+----------------------------------------------------------------
+1. EMILIANO — Reglas
+Archivo: practica03/reglas.ex
+No depende de nadie.
+
+Qué hace
+  Las seis funciones de arriba. Nada de procesos ni de impresión.
+  propuesta/0 y falla?/0 usan el azar. Las otras son cuentas sobre
+  números y listas.
+
+Cuándo está terminado
+  quorum(5) es 3, quorum(4) es 3, quorum(1) es 1.
+  hay_consenso?(5, 3) es true y hay_consenso?(5, 2) es false.
+  ordenar([410, 57, 95]) es [57, 95, 410].
+  acordado de esa lista es 57.
+  propuesta/0 cae entre 1 y 1000.
+  falla?/0 solo es true cuando el dado del 1 al 10 sale 3.
+
+
+----------------------------------------------------------------
+2. EMILIO — Participante
+Archivo: practica03/participante.ex
+No espera el cuerpo de los otros módulos.
+
+Qué hace
+  loop(id) espera {:proponer, pid_lider}.
+  Saca el valor con Reglas.propuesta/0.
+  Si Reglas.falla?/0 es true, imprime el fallo con Salida, manda
+  {:fallo_propuesta, id, valor} y termina.
+  Si no, imprime la propuesta con veces = 1, manda
+  {:propuesta, id, valor} y espera {:decision, valor}.
+  Al recibirla imprime con veces = 2 y manda {:decision_ok, id}.
+  Luego espera {:operar, valor}. Tira Reglas.falla?/0 otra vez,
+  independiente de la tirada anterior.
+  Si falla, imprime el fallo de la operación, manda
+  {:fallo_operacion, id} y termina.
+  Si no, imprime el registro, manda {:registro_ok, id} y termina.
+  No crea compañeros. No calcula el quórum. No ordena la lista.
+
+Cuándo está terminado
+  Con un líder de mentira y una Salida de mentira que solo apunta
+  las llamadas, se puede forzar el fallo de la propuesta, la
+  propuesta seguida de la decisión y el registro, y el fallo de
+  la operación. En el fallo de la propuesta no llega decision_ok.
+
+
+----------------------------------------------------------------
+3. OMAR — Líder
+Archivo: practica03/lider.ex
+No espera el cuerpo de los otros módulos.
+
+Qué hace
+  Lider.iniciar(n) sigue el orden de la corrida de este contrato.
+  Crea los n procesos, guarda cada id con su pid y les manda proponer.
+  Separa propuestas y fallos. Ordena con Reglas.ordenar/1.
+  El quórum sale de Reglas.hay_consenso?/2 y el valor de
+  Reglas.acordado/1.
+  Solo los que mandaron {:propuesta, _, _} reciben {:decision, valor}.
+  C es el número de {:decision_ok, _}.
+  Solo esos reciben {:operar, valor}.
+  E es el número de {:registro_ok, _}. F es el de {:fallo_operacion, _}.
+  Si no hay consenso, no manda decisión ni operación.
+  Imprime solo llamando a Salida. Si en 5 segundos falta una respuesta
+  que ya debía llegar, corta con un error que diga cuántas faltan.
+
+Cuándo está terminado
+  Con participantes de mentira que contestan propuesta o fallo según
+  se les pida, iniciar(5) arma la lista, decide con Q = 3 y, si hay
+  consenso, cuenta C, E y F. No se queda colgado.
+
+
+----------------------------------------------------------------
+4. ERICK — Salida
+Archivo: practica03/salida.ex
+No espera a nadie.
+
+Qué hace
+  Las funciones de "Quién imprime", con esas frases y esos saltos
+  de línea. Nada de procesos, nada de consenso, nada de azar.
+  Cada función regresa :ok después de escribir.
+
+Cuándo está terminado
+  Llamarlas con pid de prueba, valor 247, n = 5, c = 3, e = 3, f = 0
+  produce las líneas del contrato, incluyendo las comillas de
+  "Estoy esperando mensajes" y el acento de operación solo en el
+  resumen final.
+
+
+----------------------------------------------------------------
+5. JETRO — Arranque y notas
+Archivos: practica03/consenso.ex y practica03/notas_practica3.txt
+No espera el cuerpo del líder.
+
+Qué hace
+  Consenso.iniciar/1 llama a Lider.iniciar/1 y regresa su resultado.
+  Documenta el módulo. No reimplementa etapas.
+  notas_practica3.txt explica, con las cuentas ya fijadas:
+  - Q = div(N, 2) + 1 y el caso N = 5, Q = 3.
+  - Por qué cinco propuestas válidas sí son consenso, aunque el
+    primer ejemplo impreso del PDF diga que no.
+  - Por qué F no incluye a quien falló en la propuesta.
+  - Cómo se corre desde practica03: compilar los cinco módulos y
+    llamar Consenso.iniciar(5).
+  - Entrega: repositorio privado, colaborador KevinTorres74,
+    y en Classroom solo el enlace HTTPS.
+
+Cuándo está terminado
+  iniciar/1 queda escrito contra el nombre Lider.iniciar/1, aunque
+  el líder todavía sea un sustituto, y las notas cubren los cuatro
+  puntos de arriba.
+
+
+----------------------------------------------------------------
+MAPA DEL PDF
+
+  Procesos participante y líder          Emilio y Omar
+  Propuesta 1..1000 y fallo al sacar 3   Emiliano
+  Quórum, orden y valor mínimo           Emiliano
+  Recoger, decidir y operar              Omar
+  Frases y banners                       Erick
+  Arranque Consenso.iniciar(n) y notas   Jetro
+  Código documentado                     cada quien, en su archivo
+
+
+INTEGRACIÓN
+
+  Dentro de practica03 se compilan reglas.ex, salida.ex,
+  participante.ex, lider.ex y consenso.ex, y se llama
+  Consenso.iniciar(5).
+  Si hay consenso, V es el menor de v= y C no cuenta a los que
+  fallaron la propuesta. E + F es igual a C.
+  Si no hay consenso, la última línea de resultado es
+  "No es posible llegar a un consenso" y no aparece el resumen final.
+  Si algo no embona, se revisa el átomo o el orden de los campos.
+  No se reescribe el archivo de otro.
