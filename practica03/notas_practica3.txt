@@ -1,0 +1,59 @@
+NOTAS DE LA PRÁCTICA 3
+Consenso distribuido
+Jetro
+
+
+1. Quórum
+
+Q es la división entera de N entre 2, más 1. No se usa una división con
+decimales: 5 entre 2, en esta cuenta, es 2, y 2 + 1 es 3.
+
+Con 5 procesos el quórum es 3. Hay consenso cuando llegan 3, 4 o 5
+propuestas válidas. No hay consenso cuando llegan 0, 1 o 2, es decir
+cuando al menos 3 procesos fallan antes de proponer.
+
+El valor acordado, si hay consenso, es el menor de las propuestas
+válidas.
+
+
+2. El ejemplo del PDF que no se implementa
+
+El PDF imprime un caso con cinco propuestas (57, 95, 319, 386 y 410)
+y la frase "No es posible llegar a un consenso". Ese ejemplo no se
+programa. El mismo PDF dice después que cinco propuestas válidas sí
+alcanzan el quórum y el consenso debe considerarse alcanzado.
+
+Una corrida sin consenso, con cinco procesos, tiene que mostrar los
+fallos de quienes no llegaron a proponer y una lista v= con menos de
+3 valores.
+
+
+3. Qué cuenta F
+
+F es solo quien falló al registrar el valor, ya en la operación.
+Quien falló en la propuesta no entra en F y no debe imprimir
+"falla al ejecutar la operacion": ese proceso ya terminó y no
+participa en la operación.
+
+C es quien propuso y además contestó la decisión. C no es N.
+E es quien registró el valor. E + F es igual a C.
+
+El ejemplo del PDF que pone a los dos procesos caídos en la propuesta
+como si también fallaran la operación, y resume F = 2, no se copia.
+Si esos dos cayeron antes de proponer y los otros tres registran,
+el resumen es C = 3, E = 3, F = 0.
+
+
+4. Cómo se corre y cómo se entrega
+
+Desde la carpeta practica03 se compilan reglas.ex, salida.ex,
+participante.ex, lider.ex y consenso.ex, y se llama
+Consenso.iniciar(5).
+
+Las pruebas de los dos resultados del PDF están en pruebas.exs.
+Se corren con: elixir pruebas.exs
+
+El repositorio de la entrega va en privado, con KevinTorres74 como
+colaborador. En Classroom solo se manda el enlace HTTPS. El código
+de cada archivo va documentado. Si el programa no compila, la
+práctica queda en 0.

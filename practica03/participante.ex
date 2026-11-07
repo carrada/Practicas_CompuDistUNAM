@@ -1,4 +1,4 @@
-defmodule participante do
+defmodule Participante do
   @moduledoc """
   Módulo que define el comportamiento de un participante delegando
   la lógica de fallos y valores al módulo Reglas, y la impresión al módulo Salida.
@@ -15,10 +15,10 @@ defmodule participante do
         valor = Reglas.propuesta()
 
         if Reglas.falla?() do
-          Salida.falla_propuesta(id, valor)
+          Salida.falla_propuesta(self(), valor)
           send(pid_lider, {:fallo_propuesta, id, valor})
         else
-          Salida.propone(id, 1, valor)
+          Salida.propone(self(), valor, 1)
           send(pid_lider, {:propuesta, id, valor})
           
           esperar_decision(id, pid_lider)
@@ -29,7 +29,7 @@ defmodule participante do
   defp esperar_decision(id, pid_lider) do
     receive do
       {:decision, valor_acordado} ->
-        Salida.propone(id, 2, valor_acordado)
+        Salida.propone(self(), valor_acordado, 2)
         send(pid_lider, {:decision_ok, id})
         
         esperar_operacion(id, pid_lider)
@@ -40,10 +40,10 @@ defmodule participante do
     receive do
       {:operar, valor_operar} ->
         if Reglas.falla?() do
-          Salida.falla_operacion(id)
+          Salida.falla_operacion(self())
           send(pid_lider, {:fallo_operacion, id})
         else
-          Salida.registra(id, valor_operar)
+          Salida.registra(self(), valor_operar)
           send(pid_lider, {:registro_ok, id})
         end
     end
